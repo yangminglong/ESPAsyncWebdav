@@ -1,10 +1,19 @@
 #include <Arduino.h>
 #include <FS.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
 #include <DateTime.h>
-#include <Hash.h>
 #include "AsyncWebdav.h"
+
+#if defined(ARDUINO_ARCH_ESP8266) || defined(CORE_MOCK)
+#include <EspAsyncTCP.h>
+// #include <Hash.h>
+#endif
+
+#if defined(ARDUINO_ARCH_ESP32)
+#include <AsyncTCP.h>
+#endif
+
+#include <ESPAsyncWebServer.h>
+
 
 AsyncWebdav::AsyncWebdav(const String &url, FS &fs) : _fs(fs)
 {
