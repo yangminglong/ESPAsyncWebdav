@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <FS.h>
-#include <DateTime.h>
 #include "AsyncWebdav.h"
 
 #if defined(ARDUINO_ARCH_ESP8266) || defined(CORE_MOCK)
@@ -202,27 +201,12 @@ void AsyncWebdav::handlePropfind(const String &path, DavResourceType resource, A
     sendPropResponse(response, false, &baseFile);
     if (resource == DAV_RESOURCE_DIR && depth == DAV_DEPTH_CHILD)
     {
-
-        File dir = _fs.open(path);
-        // File childFile;
-
-        File file = dir.openNextFile();
-        while (file)
-        {
-            // if (file.isDirectory())
-            // {
-            //     Serial.print("  DIR : ");
-            //     Serial.println(file.name());
-            // }
-            // else
-            // {
-            //     Serial.print("  FILE: ");
-            //     Serial.print(file.name());
-            //     Serial.print("  SIZE: ");
-            //     Serial.println(file.size());
-            // }
-            sendPropResponse(response, true, &file);
-            file = dir.openNextFile();
+        Dir dir = _fs.openDir(path);        
+        File childFile;
+        while(dir.next()){
+            childFile = dir.openFile("r");
+            sendPropResponse(response, true, &childFile);
+            childFile.close();
         }
     }
     response->print("</d:multistatus>");
@@ -433,6 +417,19 @@ String AsyncWebdav::urlToUri(String url)
         return url.substring(this->_url.length());
     }
 }
+// define cal constants
+const char *months[]  = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+const char *wdays[]  = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+
+String AsyncWebdav::date2date(time_t date)
+{
+    // get & convert time to required format
+    // Tue, 13 Oct 2015 17:07:35 GMT
+    tm* gTm = gmtime(&date);
+    char buf[40];
+    snprintf(buf, sizeof(buf), "%s, %02d %s %04d %02d:%02d:%02d GMT", wdays[gTm->tm_wday], gTm->tm_mday, months[gTm->tm_mon], gTm->tm_year + 1900, gTm->tm_hour, gTm->tm_min, gTm->tm_sec);
+    return buf;
+}
 
 void AsyncWebdav::sendPropResponse(AsyncResponseStream *response, boolean recursing, File *curFile)
 {
@@ -452,8 +449,7 @@ void AsyncWebdav::sendPropResponse(AsyncResponseStream *response, boolean recurs
 
     // get file modified time
     time_t lastWrite = curFile->getLastWrite();
-    DateTimeClass dt(lastWrite);
-    String fileTimeStamp = dt.format("%a, %d %b %Y %H:%M:%S GMT");
+    String fileTimeStamp = date2date(lastWrite);
 
     // load fs info
     // FSInfo fsInfo;

@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <FS.h>
+#include <ESPAsyncWebServer.h>
 
 enum DavResourceType { DAV_RESOURCE_NONE, DAV_RESOURCE_FILE, DAV_RESOURCE_DIR };
 enum DavDepthType { DAV_DEPTH_NONE, DAV_DEPTH_CHILD, DAV_DEPTH_ALL };
@@ -32,6 +33,7 @@ class AsyncWebdav: public AsyncWebHandler {
         void handleHead(DavResourceType resource, AsyncWebServerRequest * request);
         void handleNotFound(AsyncWebServerRequest * request);
         void sendPropResponse(AsyncResponseStream *response, boolean recursing, File *curFile);
+        String date2date(time_t date);
         String urlToUri(String url);
 
 };
