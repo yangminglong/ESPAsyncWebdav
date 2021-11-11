@@ -41,6 +41,7 @@ bool AsyncWebdav::canHandle(AsyncWebServerRequest *request)
         // if (_isReject && request->method() != HTTP_PROPFIND && request->method() != HTTP_OPTIONS) {
         //     return false;
         // }
+        Serial.println("canHandle dav method.");
 
         if (request->method() == HTTP_PROPFIND || request->method() == HTTP_PROPPATCH)
         {
