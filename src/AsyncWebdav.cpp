@@ -13,6 +13,14 @@
 
 #include <ESPAsyncWebServer.h>
 
+#ifndef OUTPUT_DBG
+    #define DBG_PRINT(...) 		{ }
+    #define DBG_PRINTLN(...) 	{ }
+#else
+    #define DBG_PRINT(...) 		{ Serial.print(__VA_ARGS__); }
+    #define DBG_PRINTLN(...) 	{ Serial.println(__VA_ARGS__); }
+#endif
+
 
 AsyncWebdav::AsyncWebdav(const String &url, FS &fs) : _fs(fs)
 {
@@ -30,6 +38,10 @@ bool AsyncWebdav::canHandle(AsyncWebServerRequest *request)
 
     if (request->url().startsWith(this->_url))
     {
+        // if (_isReject && request->method() != HTTP_PROPFIND && request->method() != HTTP_OPTIONS) {
+        //     return false;
+        // }
+
         if (request->method() == HTTP_PROPFIND || request->method() == HTTP_PROPPATCH)
         {
             request->addInterestingHeader("depth");
@@ -55,6 +67,10 @@ void AsyncWebdav::handleRequest(AsyncWebServerRequest *request)
 
     Serial.print("handleRequest: ");
     Serial.println(request->url());
+
+    if (_isReject) {
+        return handleReject(request);
+    }
 
     // parse the url to a proper path
     String path = request->url().substring(this->_url.length());
@@ -193,7 +209,7 @@ void AsyncWebdav::handlePropfind(const String &path, DavResourceType resource, A
 
     // prepare response
     File baseFile = _fs.open(path, "r");
-    AsyncResponseStream *response = request->beginResponseStream("application/xml");
+    AsyncResponseStream *response = request->beginResponseStream("application/xml;charset=utf-8");
     response->setCode(207);
 
     response->print("<?xml version=\"1.0\"?>");
@@ -398,6 +414,47 @@ void AsyncWebdav::handleNotFound(AsyncWebServerRequest *request)
     AsyncWebServerResponse *response = request->beginResponse(404);
     response->addHeader("Allow", "OPTIONS,MKCOL,POST,PUT");
     request->send(response);
+}
+
+// ------------------------
+void AsyncWebdav::handleReject(AsyncWebServerRequest *request)	
+{
+// ------------------------
+	DBG_PRINT("Rejecting request: "); 
+    DBG_PRINTLN(_rejectMessage);
+
+	// handle options
+	if(request->method() == HTTP_OPTIONS) {
+        AsyncResponseStream *response = request->beginResponseStream("application/xml;charset=utf-8");
+        response->setCode(200);
+		response->addHeader("Allow", "PROPFIND,GET,DELETE,PUT,COPY,MOVE");
+        return request->send(response);
+    }
+        
+	
+	// handle properties
+	if(request->method() == HTTP_PROPFIND)	{
+        // check depth header
+        AsyncWebHeader *depthHeader = request->getHeader("Depth");
+
+        AsyncResponseStream *response = request->beginResponseStream("application/xml;charset=utf-8");
+        response->setCode(207);
+		response->addHeader("Allow", "PROPFIND,OPTIONS,DELETE,COPY,MOVE");
+
+		response->print(F("<?xml version=\"1.0\" encoding=\"utf-8\"?><D:multistatus xmlns:D=\"DAV:\"><D:response><D:href>/</D:href><D:propstat><D:status>HTTP/1.1 200 OK</D:status><D:prop><D:getlastmodified>Fri, 30 Nov 1979 00:00:00 GMT</D:getlastmodified><D:getetag>\"3333333333333333333333333333333333333333\"</D:getetag><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>"));
+		
+		if(depthHeader->value().equals("1"))	{
+			response->print(F("<D:response><D:href>/"));
+			response->print(_rejectMessage);
+			response->print(F("</D:href><D:propstat><D:status>HTTP/1.1 200 OK</D:status><D:prop><D:getlastmodified>Fri, 01 Apr 2016 16:07:40 GMT</D:getlastmodified><D:getetag>\"2222222222222222222222222222222222222222\"</D:getetag><D:resourcetype/><D:getcontentlength>0</D:getcontentlength><D:getcontenttype>application/octet-stream</D:getcontenttype></D:prop></D:propstat></D:response>"));
+        }
+		
+		response->print(F("</D:multistatus>"));
+        return request->send(response);
+	}
+
+		// if reached here, means its a 404
+    return handleNotFound(request);
 }
 
 String AsyncWebdav::urlToUri(String url)

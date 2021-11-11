@@ -14,13 +14,15 @@ class AsyncWebdav: public AsyncWebHandler {
         virtual bool canHandle(AsyncWebServerRequest *request) override final;
         virtual void handleRequest(AsyncWebServerRequest *request) override final;
         virtual void handleBody(AsyncWebServerRequest *request, unsigned char *data, size_t len, size_t index, size_t total) override final;
-        const char* url() const {
-            return _url.c_str();
-        }
-
+    public:
+        const char* url() const { return _url.c_str(); }
+        void setReject(String rejectMessage) { _isReject = true; _rejectMessage = rejectMessage; }
+        void clearReject() { _isReject = false; _rejectMessage = "" ; }
     private:
         String _url;
         FS _fs;
+        String _rejectMessage;
+        bool _isReject = false;
 
         void handlePropfind(const String& path, DavResourceType resource, AsyncWebServerRequest * request);
         void handleGet(const String& path, DavResourceType resource, AsyncWebServerRequest * request);
@@ -32,6 +34,9 @@ class AsyncWebdav: public AsyncWebHandler {
         void handleDelete(const String& path, DavResourceType resource, AsyncWebServerRequest * request);
         void handleHead(DavResourceType resource, AsyncWebServerRequest * request);
         void handleNotFound(AsyncWebServerRequest * request);
+        void handleReject(AsyncWebServerRequest *request);
+
+        
         void sendPropResponse(AsyncResponseStream *response, boolean recursing, File *curFile);
         String date2date(time_t date);
         String urlToUri(String url);
