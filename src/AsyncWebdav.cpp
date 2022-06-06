@@ -2,14 +2,17 @@
 #include <FS.h>
 #include "AsyncWebdav.h"
 
-#if defined(ARDUINO_ARCH_ESP8266) || defined(CORE_MOCK)
-#include <EspAsyncTCP.h>
-// #include <Hash.h>
+#ifdef ESP8266
+    #include <EspAsyncTCP.h>
+    #include <Hash.h>
+#else
+    #include <AsyncTCP.h>
+    #include <rom/miniz.h>
+    #undef crc32
+    #define crc32(a, len) mz_crc32( 0xffffffff, (const unsigned char *)a, len)
 #endif
 
-#if defined(ARDUINO_ARCH_ESP32)
-#include <AsyncTCP.h>
-#endif
+
 
 #include <ESPAsyncWebServer.h>
 
@@ -218,13 +221,26 @@ void AsyncWebdav::handlePropfind(const String &path, DavResourceType resource, A
     sendPropResponse(response, false, &baseFile);
     if (resource == DAV_RESOURCE_DIR && depth == DAV_DEPTH_CHILD)
     {
-        Dir dir = _fs.openDir(path);        
+    #ifdef ESP8266
         File childFile;
-        while(dir.next()){
-            childFile = dir.openFile("r");
+        Dir entry = _fs.openDir(path);        
+        while(entry.next()){
+            childFile = entry.openFile("r");
             sendPropResponse(response, true, &childFile);
             childFile.close();
         }
+    #else
+        File root = _fs.open(path);
+
+        File entry = root.openNextFile();
+        while (entry)
+        {
+            sendPropResponse(response, true, &entry);
+            entry = root.openNextFile();
+        }
+    #endif
+
+
     }
     response->print("</d:multistatus>");
 
@@ -536,8 +552,18 @@ void AsyncWebdav::sendPropResponse(AsyncResponseStream *response, boolean recurs
     }
     else
     {
+        #ifdef ESP8266
         // etag
         response->printf("<d:getetag>%s</d:getetag>", sha1(fullPath + fileTimeStamp).c_str());
+        #else
+        char entityTag [fullPath.length() + 32];
+        sprintf(entityTag, "%s%lu", fullPath.c_str(), (unsigned long)lastWrite);
+        uint32_t crc = crc32(entityTag, strlen(entityTag));
+        sprintf(entityTag, "\"%08x\"", crc);
+
+        // etag
+        response->printf("<d:getetag>%s</d:getetag>", entityTag);
+        #endif
 
         // resource type
         response->print("<d:resourcetype/>");
